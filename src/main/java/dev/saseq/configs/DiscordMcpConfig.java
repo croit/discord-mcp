@@ -15,9 +15,12 @@ import dev.saseq.services.InviteService;
 import dev.saseq.services.ChannelPermissionService;
 import dev.saseq.services.EmojiService;
 import dev.saseq.services.ForumService;
+import dev.saseq.services.FuzzSearchService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.requests.GatewayIntent;
+import net.dv8tion.jda.api.utils.ChunkingFilter;
+import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,7 +44,8 @@ public class DiscordMcpConfig {
                                              InviteService inviteService,
                                              ChannelPermissionService channelPermissionService,
                                              EmojiService emojiService,
-                                             ForumService forumService) {
+                                             ForumService forumService,
+                                             FuzzSearchService fuzzSearchService) {
         return MethodToolCallbackProvider.builder().toolObjects(
                 discordService,
                 messageService,
@@ -57,7 +61,8 @@ public class DiscordMcpConfig {
                 inviteService,
                 channelPermissionService,
                 emojiService,
-                forumService
+                forumService,
+                fuzzSearchService
         ).build();
     }
 
@@ -67,8 +72,14 @@ public class DiscordMcpConfig {
             System.err.println("ERROR: The environment variable DISCORD_TOKEN is not set. Please set it to run the application properly.");
             System.exit(1);
         }
+        // Cache the full guild member roster so name/nickname lookups work.
+        // GUILD_MEMBERS is a privileged intent (must be enabled in the Discord
+        // Developer Portal); without ChunkingFilter.ALL + MemberCachePolicy.ALL
+        // the cache holds almost no members and member search reliably fails.
         return JDABuilder.createDefault(token)
                 .enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_VOICE_STATES, GatewayIntent.SCHEDULED_EVENTS)
+                .setChunkingFilter(ChunkingFilter.ALL)
+                .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .build()
                 .awaitReady();
     }
